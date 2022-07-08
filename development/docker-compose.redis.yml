@@ -2,7 +2,7 @@
 version: "3.4"
 services:
   redis:
-    image: "redis:6-alpine"
+    image: "redis:7-alpine"
     command:
       - "sh"
       - "-c"  # this is to evaluate the $REDIS_PASSWORD from the env
