@@ -91,6 +91,7 @@ class CircuitMaintenanceConfig(PluginConfig):
         "raw_notification_size": 8192,
     }
     caching_config = {}
+    home_view_name = "plugins:nautobot_circuit_maintenance:circuitmaintenance_overview"
 
     def ready(self):
         super().ready()

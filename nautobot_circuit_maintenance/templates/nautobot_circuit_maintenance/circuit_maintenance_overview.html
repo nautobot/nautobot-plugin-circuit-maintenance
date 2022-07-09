@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+{% load buttons %}
+{% load static %}
+{% load custom_links %}
+{% load helpers %}
+{% load plugins %}
+
+{% block header %}
+{% endblock %}
+{% block content %}
+<div class="pull-right noprint">
+{% if request.user.is_authenticated and table_config_form %}
+    <button type="button" class="btn btn-default" data-toggle="modal" data-target="#ObjectTable_config"
+        title="Configure table"><i class="mdi mdi-cog"></i>Configure</button>
+{% endif %}
+{% if request.user.is_authenticated and 'export' in action_buttons %}
+    {% export_button content_type %}
+{% endif %}
+</div>
+
+<h1>{% block title %}Circuit Maintenance Dashboard{% endblock %}</h1>
+<div class="col-md-3">
+    <!-- Visual block -->
+    <div class="card">
+        <div class="container">
+            <h3 class="text-left m-2 p-3">Metrics</h3>
+            <table class="table table-hover table-headings">
+                <thead>
+                    <tr class="even">
+                        <th>Metric</th>
+                        <th>Metric Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cm_metric_key, cm_metric_value in circuit_maint_metric_data.items %}
+                    <tr class="even">
+                        <td>{{ cm_metric_key }}</td>
+                        <td>{{ cm_metric_value }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card">
+        <div class="container">
+            <h3 class="text s-2 p-3">Circuits With Maintenances in the Next 7 Days</h3>
+            <table class="table table-hover table-headings">
+                <thead>
+                    <tr class="even">
+                        <th>Circuit ID</th>
+                        <th>Sites</th>
+                        <th>Circuit Status</th>
+                        <th>Maintenance Start</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="even">
+                        {% for maintenance in upcoming_maintenances %}
+                            {% for circuit in maintenance.circuits %}
+                            <td>
+                                <a href="{{ circuit.get_absolute_url }}">{{ circuit.cid }}</a>
+                            </td>
+                            <td>
+                                {% if circuit.termination_a %}
+                                    {% with circuit_term_a_site=circuit.termination_a.connected_endpoint.parent.site %}
+                                <a href="{{ circuit_term_a_site.get_absolute_url }}">{{ circuit_term_a_site.name}}</a>{% if circuit.termination_z and circuit_term_a_site != circuit.termination_z.connected_endpoint.parent.site %}, <a href="{{ circuit.termination_z.connected_endpoint.parent.site.get_absolute_url }}">{{ circuit.termination_z.connected_endpoint.parent.site.name}}</a>{% endif %}
+                                    {% endwith %}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ circuit.status.name }}
+                            </td>
+                            <td>
+                                {{ maintenance.start_time | date:'Y-m-d H:i' }}
+                            </td>
+                            {% endfor %}
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card">
+        <div class="container card-body">
+            <h3 class="text-left m-2 p-3">Devices with Maintenances in the Next 30 Days</h3>
+            <table class="table table-hover table-headings">
+                <thead>
+                    <tr>
+                        <th>Device Name</th>
+                        <th>Maintenance Start</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for maintenance in upcoming_maintenances %}
+                    {% for circuit in maintenance.circuits %}
+                    {% if circuit.termination_a %}
+                    <tr class="even">
+                            <td>
+                                <!-- TODO: Add this as a link instead of just a text field -->
+                                {% with device_obj=circuit.termination_a.connected_endpoint.parent %}
+                                <a href="{{ device_obj.get_absolute_url }}">{{ device_obj.name }}</a> 
+                                {% endwith %}
+                            </td>
+                            <td>
+                                {{ maintenance.start_time | date:'Y-m-d H:i' }}
+                            </td>
+                        </tr>
+                    {% endif %}
+                    {% if circuit.termination_z %}
+                        <tr class="even">
+                            <td>
+                                {% with device_obj=circuit.termination_z.connected_endpoint.parent %}
+                                <a href="{{ device_obj.get_absolute_url }}">{{ device_obj.name }}</a>
+                                {% endwith %}
+                            </td>
+                            <td>
+                                {{ maintenance.start_time | date:'Y-m-d H:i' }}
+                            </td>
+                        </tr>
+                    {% endif %}
+                    {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% table_config_form table table_name="ObjectTable" %}
+{% endblock %}
+{% block javascript %}
+<script src="{% static 'js/tableconfig.js' %}"></script>
+{% endblock %}

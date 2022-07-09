@@ -4,6 +4,11 @@ from nautobot.utilities.choices import ButtonColorChoices
 
 menu_items = (
     PluginMenuItem(
+        link="plugins:nautobot_circuit_maintenance:circuitmaintenance_overview",
+        link_text="Circuit Maintenance Dashboard",
+        permissions=["nautobot_circuit_maintenance.view_circuitmaintenance"],
+    ),
+    PluginMenuItem(
         link="plugins:nautobot_circuit_maintenance:circuitmaintenance_list",
         link_text="Circuit Maintenances",
         permissions=["nautobot_circuit_maintenance.view_circuitmaintenance"],

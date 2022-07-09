@@ -44,7 +44,9 @@ bandit = "*"
 pylint = "*"
 pylint-django = "*"
 pydocstyle = "*"
-flake8 = "*"
+# we need to pin flake8 because of package dependencies that cause it to downgrade and 
+# therefore cause issues with linting since older versions do not take .flake8 as config
+flake8 = "^3.9.2"
 parameterized = "*"
 mysqlclient = "*"
 
@@ -92,12 +94,20 @@ no-docstring-rgx="^(_|test_|Meta$)"
 [tool.pylint.messages_control]
 # Line length is enforced by Black, so pylint doesn't need to check it.
 # Pylint and Black disagree about how to format multi-line arrays; Black wins.
+#
+# agruments-differ:
+# 21:4: W0221: Number of parameters was 1 in 'TestCase.setUp' and is now 1 in overridden 'GraphQLTestCase.setUp'
+#
+# attribute-defined-outside-init
+# nautobot_circuit_maintenance/views.py:74:8: W0201: Attribute 'extra_content' defined outside __init__
 disable = """,
     line-too-long,
     bad-continuation,
     too-few-public-methods,
     duplicate-code,
     too-many-ancestors,
+    attribute-defined-outside-init,
+    arguments-differ,  
     """
 
 [tool.pylint.miscellaneous]

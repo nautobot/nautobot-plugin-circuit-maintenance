@@ -1,4 +1,6 @@
 """Views for Circuit Maintenance."""
+from datetime import datetime as datet
+import datetime
 import logging
 
 import google_auth_oauthlib
@@ -7,12 +9,184 @@ from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
 from django.urls.exceptions import NoReverseMatch
 from nautobot.core.views import generic
-from nautobot.circuits.models import Provider
+from nautobot.circuits.models import Circuit, Provider
 from nautobot_circuit_maintenance import filters, forms, models, tables
 from nautobot_circuit_maintenance.handle_notifications.sources import RedirectAuthorize, Source
+from nautobot_circuit_maintenance.models import CircuitMaintenance
 
 
 logger = logging.getLogger(__name__)
+
+
+class CircuitMaintenanceOverview(generic.ObjectListView):
+    """View for an overview dashboard of summary view."""
+
+    action_buttons = ("export",)
+    filterset = filters.CircuitMaintenanceFilterSet
+    filterset_form = forms.CircuitMaintenanceFilterForm
+    table = tables.CircuitMaintenanceTable
+    template_name = "nautobot_circuit_maintenance/circuit_maintenance_overview.html"
+    queryset = models.CircuitMaintenance.objects.all()  # Needs to remain all objects, otherwise other calcs will fail.
+
+    def setup(self, request, *args, **kwargs):
+        """Using request object to perform filtering based on query params."""
+        super().setup(request, *args, **kwargs)
+        upcoming_days_maintenances = self.get_maintenances_next_n_days(n_days=7)
+
+        # Get historical matrix for number of maintenances, includes calculating the average number per month
+        historical_matrix = self._get_historical_matrix()
+
+        ###############################################################
+        # Get Average duration for the maintenances
+        ###############################################################
+        total_duration_in_minutes = 0
+
+        for ckt_maint in self.queryset:
+            duration = ckt_maint.end_time - ckt_maint.start_time
+            total_duration_in_minutes += round(duration.seconds / 60.0, 0)
+
+        circuit_maint_count = CircuitMaintenance.objects.count()
+        if circuit_maint_count > 0:
+            average_maintenance_duration = str(round(total_duration_in_minutes / circuit_maint_count, 2)) + " minutes"
+        else:
+            average_maintenance_duration = "No maintenances found."
+
+        # Get count of upcoming maintenances
+        upcoming_maintenance_count = self.calculate_future_maintenances()
+
+        # Build up a dictionary of metrics to pass into the loop within the template
+        metric_values = {
+            "7 Day Upcoming Maintenances": len(upcoming_days_maintenances),
+            "Historical - 7 Day": len(historical_matrix["past_7_days_maintenance"]),
+            "Historical - 30 Days": len(historical_matrix["past_30_days_maintenance"]),
+            "Historical - 365 Days": len(historical_matrix["past_365_days_maintenance"]),
+            "Average Duration of Maintenances": average_maintenance_duration,
+            "Future Maintenances": upcoming_maintenance_count,
+            "Average Number of Maintenances Per Month": round(self.get_maintenances_per_month(), 1),
+            "Next 30 Days, Maintenance to Circuit Ratio": round(
+                len(self.get_maintenances_next_n_days(n_days=30)) / Circuit.objects.count(), 2
+            ),
+        }
+
+        # Build out the extra content, but this does require that there is a method of `extra_content` to be created.
+        # If this method is not defined, and returning the extra_content value, then the data will not be passed to the
+        # template.
+        self.extra_content = {
+            "upcoming_maintenances": upcoming_days_maintenances,
+            "circuit_maint_metric_data": metric_values,
+        }
+
+    def extra_context(self):
+        """Extra content method on."""
+        # add global aggregations to extra context.
+
+        return self.extra_content
+
+    def get_maintenances_next_n_days(self, n_days: int):
+        """Gets maintenances in the next n number of days.
+
+        Args:
+            n_days (int): Number of days up coming
+
+        Returns:
+            Set: Set of maintenances that are up coming
+        """
+        today = datetime.date.today()
+        end_date = today + datetime.timedelta(days=n_days)
+        maintenances = self.queryset
+        return_list = []
+        for maintenance in maintenances:
+            if today <= maintenance.start_time.date() <= end_date:
+                return_list.append(maintenance)
+
+        return return_list
+
+    def get_maintenance_past_n_days(self, n_days: int):
+        """Gets maintenances in the past n number of days.
+
+        Args:
+            n_days (int): Should be a negative number for the number of days.
+        """
+        today = datetime.date.today()
+        end_date = today + datetime.timedelta(days=n_days)
+        maintenances = self.queryset
+        return_list = []
+        for maintenance in maintenances:
+            if end_date <= maintenance.start_time.date() < today:
+                return_list.append(maintenance)
+
+        return return_list
+
+    def _get_historical_matrix(self):
+        """Gets the historical matrix of the past maintenances.
+
+        Returns:
+            dict: A dictionary that represents the historical matrix maintenance record data.
+
+            {
+                "7 Days": count of past 7 days of maintenance,
+                "30 Days": count of past 30 days of maintenance,
+                "365 Days": count of past 30 days of maintenances
+            }
+        """
+        # TODO: Move to a generic function set up, since this is something that should be exposed via the Capacity
+        #       Metrics plugin when enabled.
+        return_dict = {
+            "past_7_days_maintenance": self.get_maintenance_past_n_days(-7),
+            "past_30_days_maintenance": self.get_maintenance_past_n_days(-30),
+            "past_365_days_maintenance": self.get_maintenance_past_n_days(-365),
+        }
+        return return_dict
+
+    def calculate_future_maintenances(self):
+        """Method to calculate future maintenances.
+
+        Returns:
+            int: Count of future maintenances
+        """
+        today = datetime.date.today()
+        count = 0
+        for ckt_maint in self.queryset:
+            if ckt_maint.start_time.date() > today:
+                count += 1
+
+        return count
+
+    @staticmethod
+    def get_month_list():
+        """Gets the list of months that circuit maintenances have happened.
+
+        In order to know which months there are needed for a calculate average number of maintenances per month.
+
+        Returns:
+            list: List of months from first to last maintenance.
+        """
+        ordered_ckt_maintenance = CircuitMaintenance.objects.order_by("start_time")
+        dates = [
+            str(ordered_ckt_maintenance.first().start_time.date()),
+            str(ordered_ckt_maintenance.last().start_time.date()),
+        ]
+        start, end = [datet.strptime(_, "%Y-%m-%d") for _ in dates]
+        total_months = lambda dt: dt.month + 12 * dt.year  # noqa
+        month_list = []
+        for tot_m in range(total_months(start) - 1, total_months(end)):
+            year, month = divmod(tot_m, 12)
+            month_list.append(datet(year, month + 1, 1).strftime("%Y-%m"))
+        return month_list
+
+    def get_maintenances_per_month(self):
+        """Calculates the number of circuit maintenances per month.
+
+        Returns:
+            float: Average maintenances per month
+        """
+        # Initialize each month of maintenances
+        months = self.get_month_list()
+
+        if len(months) == 0:
+            return 0
+
+        return len(self.queryset) / len(months)
 
 
 class CircuitMaintenanceListView(generic.ObjectListView):
