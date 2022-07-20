@@ -42,7 +42,7 @@ namespace.configure(
         "nautobot_circuit_maintenance": {
             "nautobot_ver": "latest",
             "project_name": "nautobot_circuit_maintenance",
-            "python_ver": "3.6",
+            "python_ver": "3.7",
             "local": False,
             "compose_dir": os.path.join(os.path.dirname(__file__), "development"),
             "compose_files": ["docker-compose.redis.yml", "docker-compose.base.yml", "docker-compose.dev.yml"],
@@ -282,7 +282,7 @@ def black(context, autoformat=False):
 @task
 def flake8(context):
     """Check for PEP8 compliance and other style issues."""
-    command = "flake8 ."
+    command = "flake8 . --config .flake8"
     run_command(context, command)
 
 

@@ -1,4 +1,10 @@
 """Init for Circuit Maintenance plugin."""
+from django.apps import apps as global_apps
+from django.conf import settings
+from django.db.models.signals import post_migrate
+from django.utils.text import slugify
+from nautobot.extras.plugins import PluginConfig
+
 try:
     from importlib import metadata
 except ImportError:
@@ -6,12 +12,6 @@ except ImportError:
     import importlib_metadata as metadata
 
 __version__ = metadata.version(__name__)
-
-from django.apps import apps as global_apps
-from django.conf import settings
-from django.db.models.signals import post_migrate
-from django.utils.text import slugify
-from nautobot.extras.plugins import PluginConfig
 
 
 def custom_fields_extension(sender, *, apps=global_apps, **kwargs):  # pylint: disable=unused-argument

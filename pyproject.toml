@@ -19,7 +19,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.6.2"
+python = "^3.7"
 nautobot = "*"
 nautobot-capacity-metrics = {version = "*", optional = true }
 # nautobot = { git = "https://github.com/nautobot/nautobot.git", branch = "develop"}
@@ -36,8 +36,6 @@ markdown = "!=3.3.5"
 [tool.poetry.dev-dependencies]
 invoke = "*"
 black = "*"
-# Added pinned typed-add to overcome issues with black version
-typed-ast = "^1.5.0"
 django-debug-toolbar = "*"
 yamllint = "*"
 bandit = "*"
